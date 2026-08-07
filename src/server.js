@@ -9,7 +9,7 @@ const connectDB = require('./config/database');
 
 // ============================================================
 // OUTLET-ADMIN backend — companion to the super-admin backend.
-// Runs on a SEPARATE port (default 8002).
+// Runs on a SEPARATE port (default 8002) locally; serverless on Vercel.
 // ============================================================
 
 const authRoutes = require('./routes/auth.routes');
@@ -43,6 +43,17 @@ if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
+// >>> KEY FIX: ensure DB is connected before ANY /api route runs <<<
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('DB connection error:', err.message);
+    res.status(500).json({ success: false, message: 'Database connection failed', error: err.message });
+  }
+});
+
 // Routes — all prefixed with /api
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
@@ -65,7 +76,7 @@ app.get('/api/health', (_req, res) => {
     service: 'liquidity-outlet-backend',
     status: 'online',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
   });
 });
 
@@ -80,23 +91,17 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 });
 
-const PORT = process.env.PORT || 8002;
-
-connectDB()
-  .then(() => {
-    if (!process.env.VERCEL) {
-      app.listen(PORT, () => {
-        console.log(`[OUTLET] Server running on port ${PORT}`);
-        console.log(`[OUTLET] Environment: ${process.env.NODE_ENV}`);
-      });
-    }
-  })
-  .catch((err) => {
-    console.error("Database connection failed:", err);
+// Run a normal server ONLY locally. Vercel imports the exported app.
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 8002;
+  app.listen(PORT, () => {
+    console.log(`[OUTLET] Server running on port ${PORT}`);
+    console.log(`[OUTLET] Environment: ${process.env.NODE_ENV}`);
   });
+}
 
 module.exports = app;
