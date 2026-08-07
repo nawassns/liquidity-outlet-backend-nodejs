@@ -86,13 +86,17 @@ app.use((err, _req, res, _next) => {
 
 const PORT = process.env.PORT || 8002;
 
-connectDB().catch(console.error);
-
-if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`[OUTLET] Server running on port ${PORT}`);
-    console.log(`[OUTLET] Environment: ${process.env.NODE_ENV}`);
+connectDB()
+  .then(() => {
+    if (!process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`[OUTLET] Server running on port ${PORT}`);
+        console.log(`[OUTLET] Environment: ${process.env.NODE_ENV}`);
+      });
+    }
+  })
+  .catch((err) => {
+    console.error("Database connection failed:", err);
   });
-}
 
 module.exports = app;
